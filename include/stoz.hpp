@@ -1,18 +1,23 @@
 #pragma once
 
-#include <cstdint>
 #include <vector>
 #include <string>
 #include <tuple>
+#include <memory>
 
-enum EStoozeyImageMode {
+enum class EStoozeyVersion {
+    INVALID,
+    V1,
+    V2,
+};
+
+enum class EStoozeyImageMode {
     L,
     RGB,
     RGBA,
-    MAX
 };
 
-enum EStoozeyHeaderValue {
+enum class EStoozeyHeaderValue {
     VERSION,
     IMAGE_MODE,
     WIDTH,
@@ -20,57 +25,67 @@ enum EStoozeyHeaderValue {
     PIXEL_SIZE,
     FRAME_COUNT,
     FRAME_DURATION,
-    MAX
 };
 
 struct SStoozeyHeader {
-    uint8_t version;
-    uint8_t image_mode;
-    uint32_t width;
-    uint32_t height;
-    uint32_t pixel_size;
-    uint32_t frame_count;
-    uint32_t frame_duration;
+    EStoozeyVersion version = EStoozeyVersion::V2;
+    EStoozeyImageMode image_mode = EStoozeyImageMode::RGB;
+    int width = 0;
+    int height = 0;
+    int pixel_size = 1;
+    int frame_count = 1;
+    int frame_duration = 0;
 };
 
-using SStoozeyPixel = uint32_t;
+struct SStoozeyPixel {
+    uint8_t r = 0x0;
+    uint8_t g = 0x0;
+    uint8_t b = 0x0;
+    uint8_t a = 0xff;
+};
+
 using SStoozeyGrid = std::vector<std::vector<SStoozeyPixel>>;
 
 class SStoozeyFrame {
     public:
-        SStoozeyFrame(uint32_t image_mode, uint32_t width, uint32_t height, uint32_t pixel_size = 1);
+        SStoozeyFrame(SStoozeyHeader header);
 
-        SStoozeyPixel GetPixel(uint32_t x, uint32_t y);
-        void SetPixel(uint32_t x, uint32_t y, SStoozeyPixel pixel);
+        SStoozeyPixel GetPixel(int x, int y);
+        void SetPixel(int x, int y, SStoozeyPixel pixel);
 
-        void Pack(std::vector<uint8_t> data);
+        void Pack(std::vector<int> data);
     private:
-        std::tuple<uint32_t, uint32_t> GetCellPosition(uint32_t x, uint32_t y);
+        std::tuple<int, int> GetCellPosition(int x, int y);
 
-        uint8_t image_mode;
+        EStoozeyImageMode image_mode;
 
-        uint32_t image_width;
-        uint32_t image_height;
+        int image_width;
+        int image_height;
 
-        uint32_t grid_width;
-        uint32_t grid_height;
+        int grid_width;
+        int grid_height;
 
-        uint32_t pixel_size;
+        int pixel_size;
 
         SStoozeyGrid grid;
 };
 
 class SStoz {
     public:
-        static SStoz Load(const char* filename);
-        static SStoz FromImage(const char* filename);
+        SStoz(SStoozeyHeader header);
 
-        uint32_t GetWidth();
-        uint32_t GetHeight();
-        uint8_t GetImageMode();
+        static std::shared_ptr<SStoz> Load(const char* filename);
+        static std::shared_ptr<SStoz> FromImage(const char* filename);
 
-        std::vector<uint8_t> GetImageData(uint32_t frame);
-        std::vector<uint8_t> Pack();
+        int GetWidth();
+        int GetHeight();
+        int GetFrameCount();
+        EStoozeyImageMode GetImageMode();
+
+        bool IsAnimated();
+
+        std::vector<uint8_t>  GetImageData(int frame_index);
+        std::vector<uint8_t>  Pack();
     private:
         SStoozeyHeader header;
         std::vector<SStoozeyFrame> frames;
