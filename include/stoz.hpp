@@ -53,7 +53,7 @@ class SStoozeyFrame {
         SStoozeyPixel GetPixel(int x, int y);
         void SetPixel(int x, int y, SStoozeyPixel pixel);
 
-        void Pack(std::vector<int> data);
+        void Pack(std::vector<int>& data);
     private:
         std::tuple<int, int> GetCellPosition(int x, int y);
 
@@ -84,8 +84,8 @@ class SStoz {
 
         bool IsAnimated();
 
-        std::vector<uint8_t>  GetImageData(int frame_index);
-        std::vector<uint8_t>  Pack();
+        std::vector<uint8_t> GetImageData(int frame_index);
+        std::vector<uint8_t> Pack();
     private:
         SStoozeyHeader header;
         std::vector<SStoozeyFrame> frames;

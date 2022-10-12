@@ -19,12 +19,13 @@ EStoozeyImageMode SStoz::GetImageMode() { return this->header.image_mode; }
 
 bool SStoz::IsAnimated() { return this->header.frame_duration != 0; }
 
-std::vector<uint8_t> SStoz::GetImageData(int frame) {
+std::vector<uint8_t> SStoz::GetImageData(int frame_index) {
     std::vector<uint8_t> data;
     data.reserve(this->header.width * this->header.height * 4);
+    SStoozeyFrame& frame = this->frames[frame_index];
     for (int x = 0; x < this->header.width; ++x) {
         for (int y = 0; y < this->header.height; ++y) {
-            SStoozeyPixel pixel = this->frames[0].GetPixel(x, y);
+            SStoozeyPixel pixel = frame.GetPixel(x, y);
 
             if (this->header.image_mode == EStoozeyImageMode::L) {
                 data.push_back(pixel.r);
@@ -50,8 +51,14 @@ std::vector<uint8_t> SStoz::GetImageData(int frame) {
     return data;
 }
 
-std::vector<uint8_t> Pack(int frame) {
+std::vector<uint8_t> SStoz::Pack() {
     std::vector<uint8_t> data;
+    data.reserve((this->header.width + this->header.height) * 8);
+
+
+
+    
+
 
     // TODO: Implement!
 
@@ -107,6 +114,7 @@ std::shared_ptr<SStoz> SStoz::FromImage(const char* filename) {
     };
 
     auto stoz = std::make_shared<SStoz>(header);
+    SStoozeyFrame& frame = stoz->frames[0];
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < height; ++y) {
             unsigned char* pixel_pos = (image + (((y * width) + x) * channels));
@@ -118,7 +126,7 @@ std::shared_ptr<SStoz> SStoz::FromImage(const char* filename) {
                 .a = (uint8_t) ((channels > 3) ? (*((uint8_t*)(pixel_pos + 3))) : (0xFF)),
             };
 
-            stoz->frames[0].SetPixel(x, y, pixel);
+            frame.SetPixel(x, y, pixel);
         }
     }
     
