@@ -4,6 +4,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(App)
 
+add_subdirectory(3rdparty/zlib)
+
 target_include_directories(App PRIVATE 
     include/
 )
@@ -13,4 +15,4 @@ target_sources(App PRIVATE
     src/stoz.cpp
 )
 
-target_link_libraries(App PRIVATE)
+target_link_libraries(App PRIVATE 3rdparty_zlib)
