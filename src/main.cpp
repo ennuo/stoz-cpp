@@ -20,4 +20,11 @@ int main() {
     }
 
     stoz = SStoz::Load("C:/Users/Aidan/Desktop/wizard.stoz");
+
+    {
+        auto image_data = stoz->GetImageData(0);
+        std::ofstream file("C:/Users/Aidan/Desktop/imagedata.new.bin", std::ios::binary);
+        file.write((const char*)image_data.data(), image_data.size());
+        file.close();
+    }
 }

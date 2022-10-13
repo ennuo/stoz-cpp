@@ -51,6 +51,7 @@ class SStoozeyLoadVector {
         std::string str(unsigned int size);
 
         void Decompress(unsigned int uncompressed_size);
+        void Forward(unsigned int offset) { this->offset += offset;  }
         uint8_t* GetPointer() { return this->data.data() + this->offset; }
     private:
         unsigned int offset;

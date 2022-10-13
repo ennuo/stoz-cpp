@@ -281,7 +281,6 @@ std::shared_ptr<SStoz> SStoz::Load(const char* filename) {
     unsigned int uncompressed_size = (header.width * header.height) * 0x8;
     load_vector.Decompress(uncompressed_size);
 
-
     auto stoz = std::make_shared<SStoz>(header);
     for (int i = 0; i < header.frame_count; ++i) {
         SStoozeyFrame& frame = stoz->frames[i];
@@ -292,11 +291,17 @@ std::shared_ptr<SStoz> SStoz::Load(const char* filename) {
         int grid_index = 0;
         while (grid_index < grid_size) {
             int count = load_vector.uleb128();
-            SStoozeyPixel pixel = (SStoozeyPixel)(load_vector.uleb128());
-            for (int j = 0; j < count; ++j) {
-
+            SStoozeyPixel pixel = *(SStoozeyPixel*)(load_vector.GetPointer());
+            load_vector.Forward(4);
+            for (int j = 0; j < count; ++j, ++grid_index) {
+                int x = grid_index % frame.GetGridHeight();
+                int y = (int) std::floor(grid_index / frame.GetGridWidth());
+                frame.SetPixel(x, y, pixel);
             }
         }
+
+        if (load_vector.str(3) != "IME")
+            throw std::runtime_error("Expected frame end!");
     }
 
     return stoz;
