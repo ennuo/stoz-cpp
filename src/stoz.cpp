@@ -5,6 +5,7 @@
 #include <stoz.hpp>
 #include <fstream>
 #include <functional>
+#include <zlib.h>
 
 SStoozeyLoadVector::SStoozeyLoadVector(const char* filename) {
     this->offset = 0;
@@ -166,7 +167,8 @@ void SStoozeyFrame::Pack(SStoozeySaveVector& stoz) {
 }
 
 std::vector<uint8_t> SStoz::Pack() {
-    SStoozeySaveVector stoz((this->GetWidth() * this->GetHeight()) * 4);
+    SStoozeySaveVector stoz(0x100);
+    SStoozeySaveVector image_vector((this->GetWidth() * this->GetHeight()) * 4);
 
     // Magic data
     stoz.str("STOZ");
@@ -182,9 +184,21 @@ std::vector<uint8_t> SStoz::Pack() {
 
     // Image data
     for (auto& frame : this->frames)
-        frame.Pack(stoz);
+        frame.Pack(image_vector);
 
-    return stoz.GetData();
+    // Zlib compress data
+
+    std::vector<uint8_t> image_data = image_vector.GetData();
+    unsigned long compressed_data_size = image_data.size();
+    unsigned char* compressed_data = new unsigned char[compressed_data_size];
+    int result = compress2(compressed_data, &compressed_data_size, image_data.data(), compressed_data_size, Z_BEST_COMPRESSION);
+
+    std::vector<uint8_t> stoz_data = stoz.GetData();
+    stoz_data.insert(stoz_data.end(), (uint8_t*) (compressed_data), (uint8_t*)(compressed_data + compressed_data_size));
+    
+    delete[] compressed_data;
+
+    return stoz_data;
 }
 
 SStoozeyFrame::SStoozeyFrame(SStoozeyHeader header) {
