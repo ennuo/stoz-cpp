@@ -29,6 +29,36 @@ unsigned int SStoozeyLoadVector::uleb128() {
     }
     return result;
 }
+std::string SStoozeyLoadVector::str(unsigned int size) {
+    std::string s;
+    s.assign((const char*) (this->data.data() + this->offset), size);
+    this->offset += size;
+    return s;
+}
+
+void SStoozeySaveVector::Compress() {
+    unsigned long compressed_data_size = this->data.size();
+    unsigned char* compressed_data = new unsigned char[compressed_data_size];
+    int result = compress2(compressed_data, &compressed_data_size, this->data.data(), compressed_data_size, Z_BEST_COMPRESSION);
+
+    this->data.clear();
+    this->data.insert(this->data.end(), (uint8_t*)(compressed_data), (uint8_t*)(compressed_data + compressed_data_size));
+    this->offset = 0;
+
+    delete[] compressed_data;
+}
+
+void SStoozeyLoadVector::Decompress(unsigned int uncompressed_size) {
+    unsigned long actual_size = uncompressed_size;
+    unsigned char* data = new unsigned char[uncompressed_size];
+    int result = uncompress(data, &actual_size, this->data.data() + this->offset, this->data.size() - this->offset);
+
+    this->data.clear();
+    this->data.insert(this->data.end(), (uint8_t*)(data), (uint8_t*)(data + actual_size));
+    this->offset = 0;
+
+    delete[] data;
+}
 
 SStoozeySaveVector::SStoozeySaveVector(int capacity) {
     this->data.reserve(capacity);
@@ -188,15 +218,10 @@ std::vector<uint8_t> SStoz::Pack() {
 
     // Zlib compress data
 
-    std::vector<uint8_t> image_data = image_vector.GetData();
-    unsigned long compressed_data_size = image_data.size();
-    unsigned char* compressed_data = new unsigned char[compressed_data_size];
-    int result = compress2(compressed_data, &compressed_data_size, image_data.data(), compressed_data_size, Z_BEST_COMPRESSION);
-
+    image_vector.Compress();
+    std::vector<uint8_t> compressed_data = image_vector.GetData();
     std::vector<uint8_t> stoz_data = stoz.GetData();
-    stoz_data.insert(stoz_data.end(), (uint8_t*) (compressed_data), (uint8_t*)(compressed_data + compressed_data_size));
-    
-    delete[] compressed_data;
+    stoz_data.insert(stoz_data.end(), compressed_data.begin(), compressed_data.end());
 
     return stoz_data;
 }
@@ -234,6 +259,47 @@ void SStoozeyFrame::SetPixel(int x, int y, SStoozeyPixel pixel) {
     auto grid_position = this->GetCellPosition(x, y);
     auto [grid_x, grid_y] = grid_position;
     this->grid[grid_y][grid_x] = pixel;
+}
+
+std::shared_ptr<SStoz> SStoz::Load(const char* filename) {
+    SStoozeyLoadVector load_vector(filename);
+
+    if (load_vector.str(4) != "STOZ")
+        throw std::runtime_error("File supplied isn't a STOZ file!");
+    load_vector.u8();
+    if (load_vector.str(3) != "HDS")
+        throw std::runtime_error("Expected header start!");
+
+    SStoozeyHeader header;
+    while (strncmp((const char*)load_vector.GetPointer(), "HDE", 3) != 0) {
+        unsigned int* ptr = ((unsigned int*)&header) + (load_vector.uleb128());
+        *ptr = load_vector.uleb128();
+    }
+    load_vector.str(3);
+
+    // Over-estimate of size since format doesn't store uncompressed size
+    unsigned int uncompressed_size = (header.width * header.height) * 0x8;
+    load_vector.Decompress(uncompressed_size);
+
+
+    auto stoz = std::make_shared<SStoz>(header);
+    for (int i = 0; i < header.frame_count; ++i) {
+        SStoozeyFrame& frame = stoz->frames[i];
+        if (load_vector.str(3) != "IMS")
+            throw std::runtime_error("Expected frame start!");
+
+        int grid_size = frame.GetGridHeight() * frame.GetGridHeight();
+        int grid_index = 0;
+        while (grid_index < grid_size) {
+            int count = load_vector.uleb128();
+            SStoozeyPixel pixel = (SStoozeyPixel)(load_vector.uleb128());
+            for (int j = 0; j < count; ++j) {
+
+            }
+        }
+    }
+
+    return stoz;
 }
 
 std::shared_ptr<SStoz> SStoz::FromImage(const char* filename) {

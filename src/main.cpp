@@ -18,4 +18,6 @@ int main() {
         file.write((const char*)image_data.data(), image_data.size());
         file.close();
     }
+
+    stoz = SStoz::Load("C:/Users/Aidan/Desktop/wizard.stoz");
 }

@@ -9,7 +9,7 @@
 enum class EStoozeyVersion {
     INVALID,
     V1,
-    V2,
+    V2
 };
 
 enum class EStoozeyImageMode {
@@ -25,7 +25,7 @@ enum class EStoozeyHeaderValue {
     HEIGHT,
     PIXEL_SIZE,
     FRAME_COUNT,
-    FRAME_DURATION,
+    FRAME_DURATION
 };
 
 class SStoozeySaveVector {
@@ -35,6 +35,7 @@ class SStoozeySaveVector {
         void uleb128(unsigned int value);
         void str(const std::string& value);
 
+        void Compress();
         std::vector<uint8_t> GetData();
 
     private:
@@ -47,7 +48,10 @@ class SStoozeyLoadVector {
         SStoozeyLoadVector(const char* filename);
         uint8_t u8();
         unsigned int uleb128();
+        std::string str(unsigned int size);
 
+        void Decompress(unsigned int uncompressed_size);
+        uint8_t* GetPointer() { return this->data.data() + this->offset; }
     private:
         unsigned int offset;
         std::vector<uint8_t> data;
@@ -80,6 +84,9 @@ class SStoozeyFrame {
         SStoozeyPixel GetPixel(int x, int y);
         void SetPixel(int x, int y, SStoozeyPixel pixel);
         void Pack(SStoozeySaveVector& stoz);
+
+        int GetGridWidth() { return this->grid_width; }
+        int GetGridHeight() { return this->grid_height;  }
     private:
         std::tuple<int, int> GetCellPosition(int x, int y);
 
