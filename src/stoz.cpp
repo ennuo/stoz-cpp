@@ -1,7 +1,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 
 #include <iostream>
-#include <stb_image.h>
+#include "stb_image.h"
 #include <stoz.hpp>
 #include <fstream>
 #include <functional>
