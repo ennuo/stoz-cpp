@@ -33,4 +33,5 @@
 
 # Workspace Files
 build
+/.vs
 /.vscode

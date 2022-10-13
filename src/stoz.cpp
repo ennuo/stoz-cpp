@@ -3,43 +3,107 @@
 #include <iostream>
 #include <stb_image.h>
 #include <stoz.hpp>
+#include <fstream>
+#include <functional>
+
+SStoozeyLoadVector::SStoozeyLoadVector(const char* filename) {
+    this->offset = 0;
+
+    std::ifstream stream(filename, std::ios::in | std::ios::binary);
+    if (!stream.good())
+        throw std::runtime_error("File doesn't exist!");
+
+    this->data = std::vector<uint8_t>((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+}
+
+uint8_t SStoozeyLoadVector::u8() { return this->data[this->offset++]; }
+unsigned int SStoozeyLoadVector::uleb128() {
+    unsigned int result = 0;
+    int index = 0;
+    while (true) {
+        uint8_t b = this->u8();
+        result |= (b & 0x7f) << 7 * index;
+        if ((b & 0x80) == 0) break;
+        ++index;
+    }
+    return result;
+}
+
+SStoozeySaveVector::SStoozeySaveVector(int capacity) {
+    this->data.reserve(capacity);
+    this->offset = 0;
+}
+
+void SStoozeySaveVector::u8(uint8_t value) { this->data.push_back(value); }
+void SStoozeySaveVector::uleb128(unsigned int value) {
+    while (true) {
+        uint8_t b = (value & 0x7f);
+        value >>= 7;
+        if (value > 0) b |= 128;
+        this->u8(b);
+        if (value == 0) break;
+    }
+}
+void SStoozeySaveVector::str(const std::string& value) {
+    for (auto& c : value)
+        this->u8((uint8_t)c);
+}
+
+std::vector<uint8_t> SStoozeySaveVector::GetData() { return this->data;  }
 
 SStoz::SStoz(SStoozeyHeader header) {
-    this->header = header;
+    this->headers[EStoozeyHeaderValue::VERSION] = (int) header.version;
+    this->headers[EStoozeyHeaderValue::IMAGE_MODE] = (int) header.image_mode;
+    this->headers[EStoozeyHeaderValue::WIDTH] = header.width;
+    this->headers[EStoozeyHeaderValue::HEIGHT] = header.height;
+    this->headers[EStoozeyHeaderValue::PIXEL_SIZE] = header.pixel_size;
+    this->headers[EStoozeyHeaderValue::FRAME_COUNT] = header.frame_count;
+    this->headers[EStoozeyHeaderValue::FRAME_DURATION] = header.frame_duration;
+
     this->frames = std::vector<SStoozeyFrame>();
     this->frames.reserve(header.frame_count);
     for (int i = 0; i < header.frame_count; ++i)
         this->frames.push_back(SStoozeyFrame(header));
 }
 
-int SStoz::GetWidth() { return this->header.width; }
-int SStoz::GetHeight() { return this->header.height; }
-int SStoz::GetFrameCount() { return this->header.frame_count; }
-EStoozeyImageMode SStoz::GetImageMode() { return this->header.image_mode; }
+int SStoz::GetWidth() { return this->headers[EStoozeyHeaderValue::WIDTH]; }
+int SStoz::GetHeight() { return this->headers[EStoozeyHeaderValue::HEIGHT]; }
+int SStoz::GetFrameCount() { 
+    if (this->headers.contains(EStoozeyHeaderValue::FRAME_COUNT))
+        return this->headers[EStoozeyHeaderValue::FRAME_COUNT];
+    return 1;
+}
+EStoozeyImageMode SStoz::GetImageMode() { 
+    return (EStoozeyImageMode)this->headers[EStoozeyHeaderValue::IMAGE_MODE];
+}
 
-bool SStoz::IsAnimated() { return this->header.frame_duration != 0; }
+bool SStoz::IsAnimated() { return this->GetFrameCount() > 1; }
 
 std::vector<uint8_t> SStoz::GetImageData(int frame_index) {
     std::vector<uint8_t> data;
-    data.reserve(this->header.width * this->header.height * 4);
+
+    int width = this->GetWidth(), height = this->GetHeight();
+    EStoozeyImageMode image_mode = this->GetImageMode();
+
+    data.reserve(width * height * 4);
     SStoozeyFrame& frame = this->frames[frame_index];
-    for (int x = 0; x < this->header.width; ++x) {
-        for (int y = 0; y < this->header.height; ++y) {
+    for (int x = 0; x < width; ++x) {
+        for (int y = 0; y < height; ++y) {
             SStoozeyPixel pixel = frame.GetPixel(x, y);
 
-            if (this->header.image_mode == EStoozeyImageMode::L) {
+            if (image_mode == EStoozeyImageMode::L) {
                 data.push_back(pixel.r);
                 continue;
             }
 
-            if (this->header.image_mode == EStoozeyImageMode::RGB) {
+            if (image_mode == EStoozeyImageMode::RGB) {
                 data.push_back(pixel.r);
                 data.push_back(pixel.g);
                 data.push_back(pixel.b);
                 continue;
             }
 
-            if (this->header.image_mode == EStoozeyImageMode::RGBA) {
+            if (image_mode == EStoozeyImageMode::RGBA) {
                 data.push_back(pixel.r);
                 data.push_back(pixel.g);
                 data.push_back(pixel.b);
@@ -51,18 +115,76 @@ std::vector<uint8_t> SStoz::GetImageData(int frame_index) {
     return data;
 }
 
-std::vector<uint8_t> SStoz::Pack() {
-    std::vector<uint8_t> data;
-    data.reserve((this->header.width + this->header.height) * 8);
-
-
-
+void SStoozeyFrame::Pack(SStoozeySaveVector& stoz) {
+    stoz.str("IMS");
     
+    EStoozeyImageMode image_mode = this->image_mode;
+    SStoozeyPixel pixel = this->GetPixel(0, 0);
+    int count = 0;
 
+    std::function<void()> write_block = [&] {
+        stoz.uleb128(count);
 
-    // TODO: Implement!
+        stoz.u8(pixel.r);
+        stoz.u8(pixel.g);
+        stoz.u8(pixel.b);
+        stoz.u8(pixel.a);
+    };
 
-    return data;
+    if (this->image_mode == EStoozeyImageMode::L) {
+        write_block = [&] {
+            stoz.uleb128(count);
+            stoz.u8(pixel.r);
+        };
+    }
+
+    if (this->image_mode == EStoozeyImageMode::RGB) {
+        write_block = [&] {
+            stoz.uleb128(count);
+
+            stoz.u8(pixel.r);
+            stoz.u8(pixel.g);
+            stoz.u8(pixel.b);
+        };
+    }
+
+    for (int y = 0; y < this->grid_height; ++y) {
+        for (int x = 0; x < this->grid_width; ++x) {
+            SStoozeyPixel current_pixel = this->grid[y][x];
+            if (*((uint32_t*)&current_pixel) != *((uint32_t*)&pixel)) {
+                write_block();
+                pixel = current_pixel;
+                count = 0;
+            }
+            count++;
+        }
+    }
+
+    if (count != 0) write_block();
+
+    stoz.str("IME");
+}
+
+std::vector<uint8_t> SStoz::Pack() {
+    SStoozeySaveVector stoz((this->GetWidth() * this->GetHeight()) * 4);
+
+    // Magic data
+    stoz.str("STOZ");
+    stoz.u8(0);
+
+    // Headers
+    stoz.str("HDS");
+    for (auto header : this->headers) {
+        stoz.uleb128((int) header.first);
+        stoz.uleb128(header.second);
+    }
+    stoz.str("HDE");
+
+    // Image data
+    for (auto& frame : this->frames)
+        frame.Pack(stoz);
+
+    return stoz.GetData();
 }
 
 SStoozeyFrame::SStoozeyFrame(SStoozeyHeader header) {
@@ -134,4 +256,3 @@ std::shared_ptr<SStoz> SStoz::FromImage(const char* filename) {
 
     return stoz;
 }
-

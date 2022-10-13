@@ -4,6 +4,7 @@
 #include <string>
 #include <tuple>
 #include <memory>
+#include <unordered_map>
 
 enum class EStoozeyVersion {
     INVALID,
@@ -27,6 +28,31 @@ enum class EStoozeyHeaderValue {
     FRAME_DURATION,
 };
 
+class SStoozeySaveVector {
+    public:
+        SStoozeySaveVector(int capacity);
+        void u8(uint8_t value);
+        void uleb128(unsigned int value);
+        void str(const std::string& value);
+
+        std::vector<uint8_t> GetData();
+
+    private:
+        unsigned int offset;
+        std::vector<uint8_t> data;
+};
+
+class SStoozeyLoadVector {
+    public:
+        SStoozeyLoadVector(const char* filename);
+        uint8_t u8();
+        unsigned int uleb128();
+
+    private:
+        unsigned int offset;
+        std::vector<uint8_t> data;
+};
+
 struct SStoozeyHeader {
     EStoozeyVersion version = EStoozeyVersion::V2;
     EStoozeyImageMode image_mode = EStoozeyImageMode::RGB;
@@ -44,7 +70,8 @@ struct SStoozeyPixel {
     uint8_t a = 0xff;
 };
 
-using SStoozeyGrid = std::vector<std::vector<SStoozeyPixel>>;
+using SStoozeyRow = std::vector<SStoozeyPixel>;
+using SStoozeyGrid = std::vector<SStoozeyRow>;
 
 class SStoozeyFrame {
     public:
@@ -52,8 +79,7 @@ class SStoozeyFrame {
 
         SStoozeyPixel GetPixel(int x, int y);
         void SetPixel(int x, int y, SStoozeyPixel pixel);
-
-        void Pack(std::vector<int>& data);
+        void Pack(SStoozeySaveVector& stoz);
     private:
         std::tuple<int, int> GetCellPosition(int x, int y);
 
@@ -87,6 +113,6 @@ class SStoz {
         std::vector<uint8_t> GetImageData(int frame_index);
         std::vector<uint8_t> Pack();
     private:
-        SStoozeyHeader header;
+        std::unordered_map<EStoozeyHeaderValue, int> headers;
         std::vector<SStoozeyFrame> frames;
 };
