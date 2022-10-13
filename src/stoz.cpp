@@ -271,6 +271,7 @@ std::shared_ptr<SStoz> SStoz::Load(const char* filename) {
         throw std::runtime_error("Expected header start!");
 
     SStoozeyHeader header;
+    // This surely isn't a problematic way to do this.
     while (strncmp((const char*)load_vector.GetPointer(), "HDE", 3) != 0) {
         unsigned int* ptr = ((unsigned int*)&header) + (load_vector.uleb128());
         *ptr = load_vector.uleb128();
@@ -291,11 +292,26 @@ std::shared_ptr<SStoz> SStoz::Load(const char* filename) {
         int grid_index = 0;
         while (grid_index < grid_size) {
             int count = load_vector.uleb128();
-            SStoozeyPixel pixel = *(SStoozeyPixel*)(load_vector.GetPointer());
-            load_vector.Forward(4);
+
+            SStoozeyPixel pixel;
+            if (header.image_mode == EStoozeyImageMode::RGBA) {
+                pixel = *(SStoozeyPixel*)(load_vector.GetPointer());
+                load_vector.Forward(4);
+            }
+            else if (header.image_mode == EStoozeyImageMode::RGB) {
+                pixel = {
+                    .r = load_vector.u8(),
+                    .g = load_vector.u8(),
+                    .b = load_vector.u8(),
+                    .a = 0xFF
+                };
+            }
+            else pixel = { .r = load_vector.u8() };
+
             for (int j = 0; j < count; ++j, ++grid_index) {
                 int x = grid_index % frame.GetGridHeight();
                 int y = (int) std::floor(grid_index / frame.GetGridWidth());
+
                 frame.SetPixel(x, y, pixel);
             }
         }
