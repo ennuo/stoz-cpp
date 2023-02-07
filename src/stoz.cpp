@@ -239,7 +239,7 @@ SStoozeyFrame::SStoozeyFrame(SStoozeyHeader header) {
     this->grid.reserve(this->grid_height);
 
     for (int i = 0; i < this->grid_height; ++i)
-        this->grid.push_back(std::vector<SStoozeyPixel>(this->grid_height));
+        this->grid.push_back(std::vector<SStoozeyPixel>(this->grid_width));
 }
 
 std::tuple<int, int> SStoozeyFrame::GetCellPosition(int x, int y) {
